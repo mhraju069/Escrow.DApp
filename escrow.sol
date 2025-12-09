@@ -7,7 +7,7 @@ contract Escrow {
         string indexed projectId,
         address indexed client
     );
-    event OrderApproved(string indexed projectId);
+    event OrderApproved(string indexed projectId,address indexed worker);
     event OrderCompleted(string indexed projectId);
     event OrderDisputed(string indexed projectId, string indexed reason);
     event OrderResolved(string indexed projectId, address indexed receiver);
@@ -53,12 +53,10 @@ contract Escrow {
     function Accept(string memory _projectId) public  {
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
-        require(order.client == msg.sender, "Only client can fund");
-        (bool success, ) = owner.call{value: order.amount}("");
-        if (success) {
-            order.status = Status.Accepted;
-            emit OrderApproved(_projectId);
-        }
+        require(order.worker == address(0) && order.status == Status.Created, "Order already accepted");
+        order.worker = msg.sender;
+        order.status = Status.Accepted;
+        emit OrderApproved(_projectId,msg.sender);
     }
 
     function Complete(string memory _projectId) public {
