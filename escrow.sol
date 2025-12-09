@@ -5,8 +5,7 @@ contract Escrow {
     address public owner;
     event OrderCreated(
         string indexed projectId,
-        address indexed client,
-        address indexed worker
+        address indexed client
     );
     event OrderApproved(string indexed projectId);
     event OrderCompleted(string indexed projectId);
@@ -25,7 +24,6 @@ contract Escrow {
         address client;
         address worker;
         uint amount;
-        bool isPaid;
         Status status;
         string projectURI;
     }
@@ -37,32 +35,26 @@ contract Escrow {
     }
 
     function Create(
-        string memory _projectId,
-        address client,
-        address worker,
-        uint amount
-    ) public {
+        string memory _projectId
+    ) public payable{
         Order memory order = Order(
-            client,
-            worker,
-            amount,
-            false,
+            msg.sender,
+            address(0),
+            msg.value,
             Status.Created,
             ""
         );
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         orderCount++;
         projectId[idHash] = order;
-        emit OrderCreated(_projectId, client, worker);
+        emit OrderCreated(_projectId, msg.sender);
     }
 
-    function Accept(string memory _projectId) public payable {
+    function Accept(string memory _projectId) public  {
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
         require(order.client == msg.sender, "Only client can fund");
-        require(msg.value == order.amount, "Invalid amount");
-        order.isPaid = true;
-        (bool success, ) = order.worker.call{value: order.amount}("");
+        (bool success, ) = owner.call{value: order.amount}("");
         if (success) {
             order.status = Status.Accepted;
             emit OrderApproved(_projectId);
