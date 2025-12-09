@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Escrow {
+contract Escrow is ReentrancyGuard{
     address public owner;
     event OrderCreated(
         string indexed projectId,
@@ -9,14 +10,15 @@ contract Escrow {
     );
     event OrderApproved(string indexed projectId,address indexed worker);
     event OrderCompleted(string indexed projectId);
+    event OrderReleased(string indexed projectId);
     event OrderDisputed(string indexed projectId, string indexed reason);
     event OrderResolved(string indexed projectId, address indexed receiver);
 
     enum Status {
         Created,
         Accepted,
-        Pending,
-        Complited,
+        Released,
+        Completed,
         Disputed
     }
     // Order structure
@@ -63,16 +65,21 @@ contract Escrow {
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
         require(order.worker == msg.sender, "Only worker can complete");
-        order.status = Status.Complited;
+        order.status = Status.Completed;
         emit OrderCompleted(_projectId);
     }
 
-    function Release(string memory _projectId) public {
+    function Release(string memory _projectId) public nonReentrant {
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
-        require(order.worker == msg.sender, "Only worker can release");
-        order.status = Status.Complited;
-        emit OrderCompleted(_projectId);
+        require(order.status == Status.Completed , "Order not completed");
+        require(order.client == msg.sender, "Only Client can release funds");
+        order.status = Status.Released; 
+        uint SentAmount = order.amount;
+        order.amount = 0;
+        (bool success, ) = order.worker.call{value: SentAmount}("");
+        require(success, "Transfer failed.");
+        emit OrderReleased(projectId);
     }
 
     function Dispute(string memory _projectId, string memory _reason) public {
