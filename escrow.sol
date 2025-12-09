@@ -72,6 +72,7 @@ contract Escrow is ReentrancyGuard{
     function Release(string memory _projectId) public nonReentrant {
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
+        require(order.status != Status.Disputed , "Order is disputed");
         require(order.status == Status.Completed , "Order not completed");
         require(order.client == msg.sender, "Only Client can release funds");
         order.status = Status.Released; 
@@ -96,18 +97,26 @@ contract Escrow is ReentrancyGuard{
     function Resolve(
         string memory _projectId,
         address receiver
-    ) public returns (bool is_success) {
+    ) public nonReentrant returns (bool is_success) {
         require(msg.sender == owner, "Only owner can resolve");
+        require(order.status == Status.Disputed, "Order is not disputed");
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
-
-        if (order.client == receiver) {
-            (bool success, ) = order.client.call{value: order.amount}("");
-            return success;
-        } else if (order.worker == receiver) {
-            (bool success, ) = order.worker.call{value: order.amount}("");
-            return success;
-        }
+        order.status = Status.Released;
+        uint SentAmount = order.amount;
+        order.amount = 0;
         emit OrderResolved(_projectId, receiver);
+        bool success;
+        if (order.client == receiver) {
+            (bool success, ) = order.client.call{value: SentAmount}("");
+            
+        } else if (order.worker == receiver) {
+            (bool success, ) = order.worker.call{value: SentAmount}("");
+        }else {
+            revert("Invalid receiver");
+        }
+        require(success, "Transfer failed.");
+        
+        return success;
     }
 }
