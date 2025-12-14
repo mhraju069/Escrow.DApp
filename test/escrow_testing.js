@@ -106,7 +106,7 @@ contract("Escrow", accounts => {
     hash = web3.utils.keccak256("XYZ1234")
     const order = await Instance.projectId(hash)
     assert.equal(order.status, 5)
-    assert.equal(order.client, accounts[0])z
+    assert.equal(order.client, accounts[0])
     assert.equal(order.worker, accounts[1])
     assert.equal(order.amount.toString(), '0')
   })
