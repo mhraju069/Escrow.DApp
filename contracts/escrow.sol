@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract Escrow is ReentrancyGuard{
     address public owner;
@@ -8,18 +8,19 @@ contract Escrow is ReentrancyGuard{
         string indexed projectId,
         address indexed client
     );
-    event OrderApproved(string indexed projectId,address indexed worker);
-    event OrderCompleted(string indexed projectId);
-    event OrderReleased(string indexed projectId);
-    event OrderDisputed(string indexed projectId, string indexed reason);
-    event OrderResolved(string indexed projectId, address indexed receiver);
+    event OrderApproved(string indexed _projectId,address indexed worker);
+    event OrderCompleted(string indexed _projectId);
+    event OrderReleased(string indexed _projectId);
+    event OrderDisputed(string indexed _projectId, string indexed reason);
+    event OrderResolved(string indexed _projectId, address indexed receiver);
 
     enum Status {
         Created,
         Accepted,
         Released,
         Completed,
-        Disputed
+        Disputed,
+        Resolved
     }
     // Order structure
     struct Order {
@@ -80,7 +81,7 @@ contract Escrow is ReentrancyGuard{
         order.amount = 0;
         (bool success, ) = order.worker.call{value: SentAmount}("");
         require(success, "Transfer failed.");
-        emit OrderReleased(projectId);
+        emit OrderReleased(_projectId);
     }
 
     function Dispute(string memory _projectId, string memory _reason) public {
@@ -99,24 +100,23 @@ contract Escrow is ReentrancyGuard{
         address receiver
     ) public nonReentrant returns (bool is_success) {
         require(msg.sender == owner, "Only owner can resolve");
-        require(order.status == Status.Disputed, "Order is not disputed");
         bytes32 idHash = keccak256(abi.encodePacked(_projectId));
         Order storage order = projectId[idHash];
-        order.status = Status.Released;
+        require(order.status == Status.Disputed, "Order is not disputed");
+        order.status = Status.Resolved;
         uint SentAmount = order.amount;
         order.amount = 0;
         emit OrderResolved(_projectId, receiver);
         bool success;
         if (order.client == receiver) {
-            (bool success, ) = order.client.call{value: SentAmount}("");
+            (success, ) = order.client.call{value: SentAmount}("");
             
         } else if (order.worker == receiver) {
-            (bool success, ) = order.worker.call{value: SentAmount}("");
+            (success, ) = order.worker.call{value: SentAmount}("");
         }else {
             revert("Invalid receiver");
         }
         require(success, "Transfer failed.");
-        
         return success;
     }
 }
